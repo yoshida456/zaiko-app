@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在庫補充チェッカー</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f8; margin: 0; padding: 15px; color: #333; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        h1 { font-size: 1.1rem; margin: 0; }
+        .header-btns { display: flex; gap: 4px; }
+        .lang-btn, .admin-open-btn { background: #6c757d; color: white; border: none; padding: 6px 8px; font-size: 0.75rem; border-radius: 4px; cursor: pointer; }
+        .admin-open-btn { background: #ffc107; color: #333; font-weight: bold; }
+        
+        .area-title { font-size: 1rem; font-weight: bold; margin: 20px 0 10px; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 3px; }
+        .card { background: #fff; padding: 12px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .item-info { flex-grow: 1; margin-right: 10px; }
+        .item-name { font-size: 0.95rem; font-weight: bold; }
+        .item-note { font-size: 0.75rem; color: #d9534f; margin-top: 2px; }
+        .input-area { display: flex; align-items: center; gap: 5px; }
+        input[type="number"] { width: 55px; font-size: 1.1rem; padding: 6px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+        .unit { font-size: 0.85rem; color: #666; }
+        
+        .btn-container { margin: 25px 0; text-align: center; }
+        .main-btn { background: #007bff; color: white; border: none; padding: 14px; font-size: 1.05rem; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
+        .main-btn.secondary { background: #6c757d; box-shadow: none; margin-top: 10px; }
+
+        /* チェックリスト画面のスタイル */
+        #checklistView { display: none; }
+        .checklist-card { background: #fff; padding: 14px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 12px; transition: all 0.3s ease; }
+        .checklist-card.checked { background: #e9ecef; opacity: 0.5; }
+        .checklist-card.checked .check-text { text-decoration: line-through; color: #6c757d; }
+        .check-checkbox { width: 22px; height: 22px; cursor: pointer; }
+        .check-info { flex-grow: 1; }
+        .check-text { font-size: 1rem; font-weight: bold; }
+        .check-sub { font-size: 0.8rem; color: #d9534f; font-weight: bold; margin-top: 2px; }
+        .empty-msg { text-align: center; padding: 40px; color: #28a745; font-size: 1.1rem; font-weight: bold; background: #fff; border-radius: 8px; }
+
+        /* 管理者モーダル */
+        #adminModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: 20px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .modal-content h2 { margin-top: 0; font-size: 1.2rem; color: #333; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 4px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+        .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+        .modal-btns button { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-close { background: #6c757d; color: white; }
+        .btn-add { background: #007bff; color: white; }
+        .admin-item-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 0.8rem; gap: 6px; }
+        .admin-item-row input[type="number"] { width: 35px; padding: 3px; font-size: 0.8rem; text-align: center; }
+        .admin-item-row select { width: 60px; padding: 2px; font-size: 0.75rem; }
+        .admin-item-row input[type="text"] { width: 100%; padding: 3px; font-size: 0.75rem; box-sizing: border-box; border: 1px solid #ccc; border-radius: 3px; margin-top: 2px; }
+        .btn-del { background: #dc3545; color: white; border: none; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 0.7rem; }
+        .btn-save-row { background: #28a745; color: white; border: none; padding: 4px 6px; border-radius: 3px; cursor: pointer; font-size: 0.7rem; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="appTitle">在庫補充チェッカー</h1>
+        <div class="header-btns">
+            <button class="lang-btn" onclick="switchLang('ja')">日本語</button>
+            <button class="lang-btn" onclick="switchLang('en')">EN</button>
+            <button class="lang-btn" onclick="switchLang('ne')">नेपाली</button>
+            <button class="admin-open-btn" onclick="openAdmin()">管理者</button>
+        </div>
+    </header>
+
+    <!-- 入力画面ビュー -->
+    <div id="inputView">
+        <div id="app">読み込み中...</div>
+        <div class="btn-container">
+            <button class="main-btn" onclick="generateChecklist()" id="genBtnText">補充チェックリストを作る</button>
+        </div>
+    </div>
+
+    <!-- チェックリスト画面ビュー -->
+    <div id="checklistView">
+        <div class="area-title" id="listHeaderTitle">🛒 持ってくるものリスト (台車用)</div>
+        <div id="checklistContainer"></div>
+        <div class="btn-container">
+            <button class="main-btn secondary" onclick="backToInput()" id="backBtnText">← 在庫入力に戻る</button>
+        </div>
+    </div>
+
+    <!-- 管理者画面モーダル -->
+    <div id="adminModal">
+        <div class="modal-content">
+            <h2 id="adminTitle">管理者画面</h2>
+            
+            <div id="loginSection">
+                <div class="form-group">
+                    <label>パスワード (暗証番号: 0000)</label>
+                    <input type="password" id="adminPassword" placeholder="パスワード">
+                </div>
+                <div class="modal-btns">
+                    <button class="btn-close" onclick="closeAdmin()">閉じる</button>
+                    <button class="btn-add" onclick="checkPassword()">ログイン</button>
+                </div>
+            </div>
+
+            <div id="adminPanelContent" style="display:none;">
+                <h3 style="font-size: 1rem; color: #007bff; margin-top: 15px;">新しい商品の追加</h3>
+                <div class="form-group">
+                    <label>追加エリア</label>
+                    <select id="newArea">
+                        <option value="ポテト下">ポテト下</option>
+                        <option value="カウンター横">カウンター横</option>
+                        <option value="ドリンクエリア">ドリンクエリア</option>
+                        <option value="キッチンエリア">キッチンエリア</option>
+                        <option value="店舗出入口">店舗出入口</option>
+                        <option value="店舗裏右">店舗裏右</option>
+                        <option value="店舗裏真ん中">店舗裏真ん中</option>
+                        <option value="店舗裏左">店舗裏左</option>
+                        <option value="ラップ">ラップ</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>資材名 (日本語)</label>
+                    <input type="text" id="newNameJa" placeholder="例: サムライマックラップ">
+                </div>
+                <div class="form-group">
+                    <label>資材名 (英語)</label>
+                    <input type="text" id="newNameEn" placeholder="例: Samurai Mac Wrap">
+                </div>
+                <div class="form-group">
+                    <label>資材名 (ネパール語)</label>
+                    <input type="text" id="newNameNe" placeholder="例: सामurai म्याक">
+                </div>
+                <div class="form-group">
+                    <label>在庫の数え方の単位</label>
+                    <select id="newStockUnit">
+                        <option value="袋">袋</option>
+                        <option value="本">本</option>
+                        <option value="箱">箱</option>
+                        <option value="シート">シート</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>基準（この数以下になったら）</label>
+                    <input type="number" id="newTarget" value="3">
+                </div>
+                <div class="form-group">
+                    <label>補充する数と単位</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="newAddQty" value="1" style="width: 80px;" placeholder="数">
+                        <select id="newAddUnit">
+                            <option value="箱">箱</option>
+                            <option value="袋">袋</option>
+                            <option value="本">本</option>
+                            <option value="シート">シート</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>赤文字メモ (例: 3袋切ったら)</label>
+                    <input type="text" id="newNote" placeholder="特記事項があれば">
+                </div>
+                <button class="btn-add" style="width:100%; padding: 10px;" onclick="addNewItem()">追加する</button>
+
+                <h3 style="font-size: 1rem; color: #dc3545; margin-top: 25px;">商品の一覧・ルールの変更・削除</h3>
+                <div id="adminItemList" style="max-height: 280px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; border-radius: 4px;"></div>
+
+                <div class="modal-btns" style="margin-top: 20px;">
+                    <button class="btn-close" onclick="closeAdmin()">閉じる・反映する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const defaultCategories = {
+  "ポテト下": [
+    { id: "p1", name: { ja: "ドライワイパー", en: "Dry Wiper", ne: "सुख्खा वाइपर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "p2", name: { ja: "Sポテトバッグ", en: "S Potato Bag", ne: "एस आलु झोला" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "p3", name: { ja: "Mポテトバッグ", en: "M Potato Bag", ne: "एम आलु झोला" }, target: 3, stockUnit: "袋", addQty: 1, addUnit: "箱", note: "3袋切ったら" },
+    { id: "p4", name: { ja: "Lポテトバッグ", en: "L Potato Bag", ne: "एल आलु झोला" }, target: 3, stockUnit: "袋", addQty: 1, addUnit: "箱", note: "3袋切ったら" },
+    { id: "p5", name: { ja: "ペーパーナプキン", en: "Paper Napkin", ne: "पेपर न्यापकिन" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "3/4切ったら" }
+  ],
+  "カウンター横": [
+    { id: "c1", name: { ja: "ガムシロップ", en: "Gum Syrup", ne: "गम सिरप" }, target: 5, stockUnit: "袋", addQty: 1, addUnit: "箱", note: "残り5袋になったら" },
+    { id: "c2", name: { ja: "コーヒーフレッシュ", en: "Coffee Fresh", ne: "कफी फ्रेस" }, target: 5, stockUnit: "袋", addQty: 1, addUnit: "箱", note: "残り5袋になったら" },
+    { id: "c3", name: { ja: "ゴマドレッシング", en: "Sesame Dressing", ne: "तिलको ड्रेसिङ" }, target: 1, stockUnit: "シート", addQty: 1, addUnit: "箱", note: "" },
+    { id: "c4", name: { ja: "リンゴクリーム", en: "Apple Cream", ne: "स्याउ क्रिम" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" }
+  ],
+  "ドリンクエリア": [
+    { id: "d1", name: { ja: "シュガー", en: "Sugar", ne: "चिनी" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d2", name: { ja: "マドラー", en: "Stirrer", ne: "मडलर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d3", name: { ja: "コーヒーろ紙", en: "Coffee Filter", ne: "कफी फिल्टर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d4", name: { ja: "ホットティー", en: "Hot Tea", ne: "तातो चिया" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "d5", name: { ja: "チェダーチーズ", en: "Cheddar Cheese", ne: "चेडर चीज" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d6", name: { ja: "リキッドレモン", en: "Liquid Lemon", ne: "तरल कागती" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d7", name: { ja: "オレオクッキー", en: "Oreo Cookie", ne: "ओरियो कुकी" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d8", name: { ja: "爽健美茶", en: "Sokenbicha", ne: "सोकेनबिचा चिया" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "d9", name: { ja: "ホットコーヒー", en: "Hot Coffee", ne: "तातो कफी" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "半分切ったら" },
+    { id: "d10", name: { ja: "アイスコーヒー", en: "Iced Coffee", ne: "आइस कफी" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "半分切ったら" }
+  ],
+  "キッチンエリア": [
+    { id: "k1", name: { ja: "タウパー", en: "Towper Paper", ne: "टाउपर पेपर" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k2", name: { ja: "ソフトコーン", en: "Soft Cone", ne: "सफ्ट कोन" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "箱", note: "残り2本になったら" },
+    { id: "k3", name: { ja: "バニラシロップ", en: "Vanilla Syrup", ne: "भानीला सिरप" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k4", name: { ja: "ストロベリーシロップ", en: "Strawberry Syrup", ne: "स्ट्रबेरी सिरप" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k5", name: { ja: "チョコシロップ", en: "Chocolate Syrup", ne: "चकलेट सिरप" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k6", name: { ja: "マンゴーSB", en: "Mango SB", ne: "आँप एसबी" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "k7", name: { ja: "キャラメルソース", en: "Caramel Sauce", ne: "कारamel सस" }, target: 1, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "k8", name: { ja: "キャラメルシロップ", en: "Caramel Syrup", ne: "कारamel सिरप" }, target: 1, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "k9", name: { ja: "エスプレッソ豆", en: "Espresso Beans", ne: "एस्प्रेसो बन्स" }, target: 4, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k10", name: { ja: "リキッドオイル", en: "Liquid Oil", ne: "तरल तेल" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k11", name: { ja: "乾燥オニオン", en: "Dry Onion", ne: "सुख्खा प्याज" }, target: 8, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k12", name: { ja: "テリヤキソース", en: "Teriyaki Sauce", ne: "तेरियाकी सस" }, target: 6, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k13", name: { ja: "グリルシーズニング", en: "Grill Seasoning", ne: "ग्रिल सिजनिङ" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k14", name: { ja: "塩", en: "Salt", ne: "नुन" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k15", name: { ja: "ケチャップ", en: "Ketchup", ne: "केचप" }, target: 6, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k16", name: { ja: "マスタード", en: "Mustard", ne: "मस्टर्ड" }, target: 3, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k17", name: { ja: "ピクルス", en: "Pickles", ne: "पिकल" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "k18", name: { ja: "アブリショウユソース", en: "Aburi Soy Sauce", ne: "अबुरी सोय सस" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "k19", name: { ja: "ガーリックペッパーソース", en: "Garlic Pepper Sauce", ne: "लसुन मरिच सस" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" }
+  ],
+  "店舗出入口": [
+    { id: "e1", name: { ja: "ショ缶", en: "Sho Can", ne: "शो क्यान" }, target: 4, stockUnit: "缶", addQty: 1, addUnit: "缶", note: "" },
+    { id: "e2", name: { ja: "CO2", en: "CO2 Cylinder", ne: "CO2 सिलिन्डर" }, target: 1, stockUnit: "本", addQty: 1, addUnit: "本", note: "" }
+  ],
+  "店舗裏右": [
+    { id: "r1", name: { ja: "3号バッグ", en: "Size 3 Bag", ne: "नम्बर ३ झोला" }, target: 1, stockUnit: "個", addQty: 1, addUnit: "個", note: "" },
+    { id: "r2", name: { ja: "6号バッグ", en: "Size 6 Bag", ne: "नम्बर ६ झोला" }, target: 2, stockUnit: "個", addQty: 1, addUnit: "個", note: "" },
+    { id: "r3", name: { ja: "9号バッグ", en: "Size 9 Bag", ne: "नम्बर ९ झोला" }, target: 1, stockUnit: "個", addQty: 1, addUnit: "個", note: "" },
+    { id: "r4", name: { ja: "プラストロー", en: "Plastic Straw", ne: "प्लास्टिक स्ट्र" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "r5", name: { ja: "フレキシブルストロー", en: "Flexible Straw", ne: "लचकदार स्ट्र" }, target: 2, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "r6", name: { ja: "スプーンストロー", en: "Spoon Straw", ne: "स्पून स्ट्र" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "r7", name: { ja: "サラダフォーク", en: "Salad Fork", ne: "सलाद फोर्क" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "r8", name: { ja: "スプーン", en: "Spoon", ne: "चम्चा" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "r9", name: { ja: "ハッピーバッグ", en: "Happy Bag", ne: "ह्याप्पी झोला" }, target: 2, stockUnit: "個", addQty: 1, addUnit: "個", note: "" },
+    { id: "r10", name: { ja: "BBQソース", en: "BBQ Sauce", ne: "बार्ब्यु क्यु सस" }, target: 2, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "r11", name: { ja: "MUSTソース", en: "Mustard Sauce", ne: "मस्टर्ड सस" }, target: 2, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "r12", name: { ja: "カップケチャップ", en: "Cup Ketchup", ne: "कप केचप" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" }
+  ],
+  "店舗裏真ん中": [
+    { id: "m1", name: { ja: "ドリンクキャリア", en: "Drink Carrier", ne: "ड्रिंक क्यारियर" }, target: 4, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m2", name: { ja: "9ozホットリッド", en: "9oz Hot Lid", ne: "९ औंस तातो बिर्को" }, target: 3, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m3", name: { ja: "12ozホットリッド", en: "12oz Hot Lid", ne: "१२ औंस तातो बिर्को" }, target: 6, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m4", name: { ja: "プラリッド", en: "Plastic Lid", ne: "प्लास्टिक बिर्को" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m5", name: { ja: "ドームリッド", en: "Dome Lid", ne: "डोम बिर्को" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m6", name: { ja: "フルーリーカップ", en: "McFlurry Cup", ne: "म्याकफ्लरी कप" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m7", name: { ja: "コーンカップ", en: "Cone Cup", ne: "कोन कप" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m8", name: { ja: "コーンリッド", en: "Cone Lid", ne: "कोन बिर्को" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m9", name: { ja: "サラダBOX", en: "Salad Box", ne: "सलाद बक्स" }, target: 1, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m10", name: { ja: "水飲みカップ", en: "Water Cup", ne: "पानी पिउने कप" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m11", name: { ja: "ウェットワイパー", en: "Wet Wiper", ne: "भिजेको वाइपर" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m12", name: { ja: "10ozコールドリッド", en: "10oz Cold Lid", ne: "१० औंस चिसो बिर्को" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m13", name: { ja: "14ozコールドリッド", en: "14oz Cold Lid", ne: "१४ औंस चिसो बिर्को" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m14", name: { ja: "10ozコールドカップ", en: "10oz Cold Cup", ne: "१० औंस चिसो कप" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m15", name: { ja: "14ozコールドカップ", en: "14oz Cold Cup", ne: "१४ औंस चिसो कप" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m16", name: { ja: "18ozコールドカップ", en: "18oz Cold Cup", ne: "१८ औंस चिसो कप" }, target: 3, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "m17", name: { ja: "9ozホットカップ", en: "9oz Hot Cup", ne: "९ औंस तातो कप" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "m18", name: { ja: "12ozホットカップ", en: "12oz Hot Cup", ne: "१२ औंस तातो कप" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" }
+  ],
+  "店舗裏左": [
+    { id: "l1", name: { ja: "レシートロール", en: "Receipt Roll", ne: "रसिद रोल" }, target: 7, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "l2", name: { ja: "スティッカーレシート", en: "Sticker Receipt", ne: "स्टिकर रसिद" }, target: 3, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "l3", name: { ja: "3POシール", en: "3PO Seal", ne: "३पिओ स्टिकर" }, target: 8, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "l4", name: { ja: "倍シール", en: "Double Seal", ne: "डबल स्टिकर" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "l5", name: { ja: "Sポリ袋", en: "S Poly Bag", ne: "एस पोली झोला" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "l6", name: { ja: "Lポリ袋", en: "L Poly Bag", ne: "एल पोली झोला" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "l7", name: { ja: "ドリンク袋", en: "Drink Bag", ne: "ड्रिंक झोला" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "l8", name: { ja: "パックライナー", en: "Pack Liner", ne: "प्याक लाइनर" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" }
+  ],
+  "ラップ": [
+    { id: "w1", name: { ja: "BIGMAC", en: "BIGMAC", ne: "बिग म्याक" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w2", name: { ja: "倍BIGMAC", en: "Double BIGMAC", ne: "डबल बिग म्याक" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w3", name: { ja: "FOF", en: "Filet-O-Fish", ne: "फillet-o-fish" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w4", name: { ja: "倍FOF", en: "Double FOF", ne: "डबल FOF" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w5", name: { ja: "プチパン", en: "Petit Bun", ne: "पिटिट ब्रेड" }, target: 1, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "w6", name: { ja: "NGT", en: "Nugget", ne: "नग्गेट" }, target: 2, stockUnit: "本", addQty: 1, addUnit: "本", note: "" },
+    { id: "w7", name: { ja: "NGT15P", en: "Nugget 15P", ne: "नग्गेट १५ पिसेस" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "w8", name: { ja: "アップルパイ", en: "Apple Pie", ne: "स्याउ पाई" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "w9", name: { ja: "シャカチキ", en: "Shaka Chiki", ne: "शाका चिकी" }, target: 1, stockUnit: "箱", addQty: 1, addUnit: "箱", note: "" },
+    { id: "w10", name: { ja: "エビフィレオ", en: "Shrimp Filet", ne: "श्रीम फिले" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w11", name: { ja: "チキンフィレオ", en: "Chicken Filet", ne: "चिकन फिले" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w12", name: { ja: "DCB", en: "Double Cheeseburger", ne: "डबल चिजबर्गर्स" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w13", name: { ja: "TMB", en: "Teriyaki McBurger", ne: "तेरियाकी बर्गर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w14", name: { ja: "エグチ&BLB", en: "EguChi & BLB", ne: "एगुची र बीएलबी" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w15", name: { ja: "チキチー&クリスプ", en: "Chiki-Chiki & Crisp", ne: "चिकिची र क्रिस्प" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w16", name: { ja: "HB", en: "Hamburger", ne: "हम्बर्गर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w17", name: { ja: "CB", en: "Cheeseburger", ne: "चिजबर्गर" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w18", name: { ja: "テリCFO", en: "Teriyaki Chicken Filet", ne: "तेरियाकी चिकन" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w19", name: { ja: "アブリダブル", en: "Aburi Double", ne: "अबुरी डबल" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" },
+    { id: "w20", name: { ja: "アブリベーコン", en: "Aburi Bacon", ne: "अबुरी बेकन" }, target: 1, stockUnit: "袋", addQty: 1, addUnit: "袋", note: "" }
+  ]
+};
+
+let currentLang = 'ja';
+let categories = JSON.parse(JSON.stringify(defaultCategories));
+
+try {
+    const savedLang = localStorage.getItem('app_lang');
+    if (savedLang) currentLang = savedLang;
+    const savedCat = localStorage.getItem('app_categories');
+    if (savedCat) {
+        const parsed = JSON.parse(savedCat);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            categories = parsed;
+        }
+    }
+} catch (e) {
+    localStorage.clear();
+}
+
+const uiTexts = {
+  ja: { title: "在庫補充チェッカー", genBtn: "補充チェックリストを作る", backBtn: "← 在庫入力に戻る", adminTitle: "管理者画面", listTitle: "🛒 持ってくるものリスト (台車用)", allOk: "✨ すべて在庫十分です！補充の必要はありません。" },
+  en: { title: "Inventory Checker", genBtn: "Generate Checklist", backBtn: "← Back to Inventory", adminTitle: "Admin Panel", listTitle: "🛒 Cart Checklist", allOk: "✨ All inventory is sufficient!" },
+  ne: { title: "स्टक जाँचकर्ता", genBtn: "चेकलिस्ट सिर्जना गर्नुहोस्", backBtn: "← फिर्ता", adminTitle: "व्यवस्थापक प्यानल", listTitle: "🛒 गाडी चेकलिस्ट", allOk: "✨ सबै स्टक पर्याप्त छ!" }
+};
+
+function renderApp() {
+    try {
+        const t = uiTexts[currentLang] || uiTexts.ja;
+        document.getElementById('appTitle').textContent = t.title;
+        document.getElementById('genBtnText').textContent = t.genBtn;
+        document.getElementById('backBtnText').textContent = t.backBtn;
+        document.getElementById('adminTitle').textContent = t.adminTitle;
+        document.getElementById('listHeaderTitle').textContent = t.listTitle;
+
+        const app = document.getElementById('app');
+        app.innerHTML = '';
+        
+        for (const [area, items] of Object.entries(categories)) {
+            if (!Array.isArray(items)) continue;
+
+            const areaDiv = document.createElement('div');
+            areaDiv.className = 'area-title';
+            areaDiv.textContent = area;
+            app.appendChild(areaDiv);
+
+            items.forEach((item) => {
+                if (!item || !item.name) return;
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                const itemName = item.name[currentLang] || item.name.ja || item.name;
+                const noteHtml = item.note ? `<div class="item-note">※${item.note}</div>` : '';
+                const currentVal = item.current !== undefined ? item.current : item.target;
+                const stockUnit = item.stockUnit || '袋';
+
+                card.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-name">${itemName}</div>
+                        ${noteHtml}
+                    </div>
+                    <div class="input-area">
+                        <input type="number" inputmode="numeric" value="${currentVal}" id="input-${item.id}" onchange="updateCurrentVal('${item.id}', this.value)">
+                        <span class="unit">${stockUnit}</span>
+                    </div>
+                `;
+                app.appendChild(card);
+            });
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function updateCurrentVal(id, val) {
+    if (val === '') return;
+    const num = parseInt(val, 10);
+    for (const items of Object.values(categories)) {
+        const item = items.find(i => i.id === id);
+        if (item) {
+            item.current = num;
+            break;
+        }
+    }
+    localStorage.setItem('app_categories', JSON.stringify(categories));
+}
+
+// 完了ボタン：チェックリスト生成
+function generateChecklist() {
+    for (const items of Object.values(categories)) {
+        if (!Array.isArray(items)) continue;
+        items.forEach(item => {
+            const elem = document.getElementById(`input-${item.id}`);
+            if (elem && elem.value !== '') {
+                item.current = parseInt(elem.value, 10);
+            }
+        });
+    }
+    localStorage.setItem('app_categories', JSON.stringify(categories));
+
+    const container = document.getElementById('checklistContainer');
+    container.innerHTML = '';
+
+    let needCount = 0;
+
+    for (const [area, items] of Object.entries(categories)) {
+        if (!Array.isArray(items)) continue;
+
+        items.forEach(item => {
+            const current = item.current !== undefined ? item.current : item.target;
+            const target = item.target !== undefined ? item.target : 1;
+            const stockUnit = item.stockUnit || '袋';
+            const addQty = item.addQty !== undefined ? item.addQty : 1;
+            const addUnit = item.addUnit || '箱';
+
+            if (current <= target) {
+                needCount++;
+                const itemName = item.name[currentLang] || item.name.ja || item.name;
+                
+                const card = document.createElement('div');
+                card.className = 'checklist-card';
+                card.innerHTML = `
+                    <input type="checkbox" class="check-checkbox" onclick="toggleCheck(this)">
+                    <div class="check-info">
+                        <div class="check-text">[${area}] ${itemName}</div>
+                        <div class="check-sub">持ってくる: ${addQty} ${addUnit} (現在庫: ${current}${stockUnit} / 基準: ${target}${stockUnit}以下)</div>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        });
+    }
+
+    if (needCount === 0) {
+        const t = uiTexts[currentLang] || uiTexts.ja;
+        container.innerHTML = `<div class="empty-msg">${t.allOk}</div>`;
+    }
+
+    document.getElementById('inputView').style.display = 'none';
+    document.getElementById('checklistView').style.display = 'block';
+    window.scrollTo(0, 0);
+}
+
+function toggleCheck(checkbox) {
+    const card = checkbox.closest('.checklist-card');
+    const container = document.getElementById('checklistContainer');
+    
+    if (checkbox.checked) {
+        card.classList.add('checked');
+        container.appendChild(card);
+    } else {
+        card.classList.remove('checked');
+    }
+}
+
+function backToInput() {
+    document.getElementById('checklistView').style.display = 'none';
+    document.getElementById('inputView').style.display = 'block';
+    window.scrollTo(0, 0);
+    renderApp();
+}
+
+function switchLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('app_lang', lang);
+    renderApp();
+}
+
+function openAdmin() {
+    document.getElementById('adminModal').style.display = 'block';
+    document.getElementById('loginSection').style.display = 'block';
+    document.getElementById('adminPanelContent').style.display = 'none';
+    document.getElementById('adminPassword').value = '';
+}
+
+function closeAdmin() {
+    document.getElementById('adminModal').style.display = 'none';
+    renderApp();
+}
+
+function checkPassword() {
+    const pass = document.getElementById('adminPassword').value;
+    if (pass === '0000') { // パスワードを 0000 に設定
+        document.getElementById('loginSection').style.display = 'none';
+        document.getElementById('adminPanelContent').style.display = 'block';
+        renderAdminItemList();
+    } else {
+        alert('パスワードが違います');
+    }
+}
+
+function renderAdminItemList() {
+    const listDiv = document.getElementById('adminItemList');
+    listDiv.innerHTML = '';
+
+    for (const [area, items] of Object.entries(categories)) {
+        if (!Array.isArray(items)) continue;
+        items.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'admin-item-row';
+            const jName = item.name.ja || item.name;
+            const targetVal = item.target !== undefined ? item.target : 1;
+            const stockUnitVal = item.stockUnit || '袋';
+            const addQtyVal = item.addQty !== undefined ? item.addQty : 1;
+            const addUnitVal = item.addUnit || '箱';
+            const noteVal = item.note || '';
+
+            const units = ['袋', '本', '箱', 'シート'];
+            const stockUnitOptions = units.map(u => `<option value="${u}" ${stockUnitVal === u ? 'selected' : ''}>${u}</option>`).join('');
+            const addUnitOptions = units.map(u => `<option value="${u}" ${addUnitVal === u ? 'selected' : ''}>${u}</option>`).join('');
+
+            row.innerHTML = `
+                <div style="flex-grow:1; font-size:0.75rem;">
+                    <b>[${area}]</b> ${jName}<br>
+                    基準:<input type="number" id="admin-target-${item.id}" value="${targetVal}">
+                    <select id="admin-stockunit-${item.id}">${stockUnitOptions}</select>以下で
+                    持参:<input type="number" id="admin-addqty-${item.id}" value="${addQtyVal}">
+                    <select id="admin-addunit-${item.id}">${addUnitOptions}</select>
+                    <input type="text" id="admin-note-${item.id}" value="${noteVal}" placeholder="赤文字メモ">
+                </div>
+                <div style="display:flex; gap:2px; flex-direction:column;">
+                    <button class="btn-save-row" onclick="updateItemRule('${area}', ${index}, '${item.id}')">保存</button>
+                    <button class="btn-del" onclick="deleteItem('${area}', ${index})">削除</button>
+                </div>
+            `;
+            listDiv.appendChild(row);
+        });
+    }
+}
+
+function updateItemRule(area, index, id) {
+    const targetInput = document.getElementById(`admin-target-${id}`);
+    const stockUnitInput = document.getElementById(`admin-stockunit-${id}`);
+    const addQtyInput = document.getElementById(`admin-addqty-${id}`);
+    const addUnitInput = document.getElementById(`admin-addunit-${id}`);
+    const noteInput = document.getElementById(`admin-note-${id}`);
+    if (!targetInput || !stockUnitInput || !addQtyInput || !addUnitInput || !noteInput) return;
+
+    const newTarget = parseInt(targetInput.value, 10);
+    const newStockUnit = stockUnitInput.value;
+    const newAddQty = parseInt(addQtyInput.value, 10);
+    const newAddUnit = addUnitInput.value;
+    const newNote = noteInput.value.trim();
+
+    if (isNaN(newTarget) || isNaN(newAddQty)) {
+        alert('正しい数値を入力してください');
+        return;
+    }
+
+    categories[area][index].target = newTarget;
+    categories[area][index].stockUnit = newStockUnit;
+    categories[area][index].addQty = newAddQty;
+    categories[area][index].addUnit = newAddUnit;
+    categories[area][index].note = newNote;
+
+    localStorage.setItem('app_categories', JSON.stringify(categories));
+    alert('設定を更新しました！');
+    renderAdminItemList();
+}
+
+function addNewItem() {
+    const area = document.getElementById('newArea').value;
+    const nameJa = document.getElementById('newNameJa').value.trim();
+    const nameEn = document.getElementById('newNameEn').value.trim() || nameJa;
+    const nameNe = document.getElementById('newNameNe').value.trim() || nameJa;
+    const target = parseInt(document.getElementById('newTarget').value, 10) || 3;
+    const stockUnit = document.getElementById('newStockUnit').value;
+    const addQty = parseInt(document.getElementById('newAddQty').value, 10) || 1;
+    const addUnit = document.getElementById('newAddUnit').value;
+    const note = document.getElementById('newNote').value.trim();
+
+    if (!nameJa) {
+        alert('資材名（日本語）を入力してください');
+        return;
+    }
+
+    const newItem = {
+        id: 'item_' + Date.now() + Math.random().toString(36).substring(2, 5),
+        name: { ja: nameJa, en: nameEn, ne: nameNe },
+        target: target,
+        stockUnit: stockUnit,
+        addQty: addQty,
+        addUnit: addUnit,
+        note: note,
+        current: target
+    };
+
+    if (!categories[area]) {
+        categories[area] = [];
+    }
+    categories[area].push(newItem);
+
+    localStorage.setItem('app_categories', JSON.stringify(categories));
+    
+    document.getElementById('newNameJa').value = '';
+    document.getElementById('newNameEn').value = '';
+    document.getElementById('newNameNe').value = '';
+    document.getElementById('newNote').value = '';
+
+    renderAdminItemList();
+    alert('追加しました！');
+}
+
+function deleteItem(area, index) {
+    if (confirm('本当に削除しますか？')) {
+        categories[area].splice(index, 1);
+        localStorage.setItem('app_categories', JSON.stringify(categories));
+        renderAdminItemList();
+    }
+}
+
+renderApp();
+</script>
+
+</body>
+</html>
