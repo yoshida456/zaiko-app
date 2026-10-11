@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在庫補充チェッカー</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f8; margin: 0; padding: 15px; color: #333; }
+        h1 { font-size: 1.2rem; text-align: center; margin-bottom: 10px; }
+        .area-title { font-size: 1rem; font-weight: bold; margin: 20px 0 10px; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 3px; }
+        .card { background: #fff; padding: 12px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .item-info { flex-grow: 1; margin-right: 10px; }
+        .item-name { font-size: 0.95rem; font-weight: bold; }
+        .item-note { font-size: 0.75rem; color: #d9534f; margin-top: 2px; }
+        .input-area { display: flex; align-items: center; gap: 5px; }
+        input[type="number"] { width: 55px; font-size: 1.1rem; padding: 6px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+        .unit { font-size: 0.85rem; color: #666; width: 25px; }
+        .btn-container { margin-top: 25px; text-align: center; }
+        button { background: #28a745; color: white; border: none; padding: 12px 25px; font-size: 1rem; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+        button:active { background: #218838; }
+    </style>
+</head>
+<body>
+
+    <h1>在庫補充チェッカー</h1>
+    <div id="app"></div>
+
+    <div class="btn-container">
+        <button onclick="saveData()">保存する</button>
+    </div>
+
+<script>
+const initialCategories = {
+  "ポテト下": [
+    { name: "ドライワイパー", count: 1, unit: "袋", note: "" },
+    { name: "Sポテトバッグ", count: 1, unit: "箱", note: "" },
+    { name: "Mポテトバッグ", count: 1, unit: "箱", note: "3袋切ったら" },
+    { name: "Lポテトバッグ", count: 1, unit: "箱", note: "3袋切ったら" },
+    { name: "ペーパーナプキン", count: 1, unit: "箱", note: "3/4切ったら" }
+  ],
+  "カウンター横": [
+    { name: "ガムシロップ", count: 1, unit: "箱", note: "残り5袋になったら" },
+    { name: "コーヒーフレッシュ", count: 1, unit: "箱", note: "残り5袋になったら" },
+    { name: "ゴマドレッシング", count: 1, unit: "箱", note: "" },
+    { name: "リンゴクリーム", count: 1, unit: "箱", note: "" }
+  ],
+  "ドリンクエリア": [
+    { name: "シュガー", count: 2, unit: "袋", note: "" },
+    { name: "マドラー", count: 1, unit: "袋", note: "" },
+    { name: "コーヒーろ紙", count: 1, unit: "袋", note: "" },
+    { name: "ホットティー", count: 1, unit: "箱", note: "" },
+    { name: "チェダーチーズ", count: 1, unit: "袋", note: "" },
+    { name: "リキッドレモン", count: 1, unit: "袋", note: "" },
+    { name: "オレオクッキー", count: 2, unit: "袋", note: "" },
+    { name: "爽健美茶", count: 1, unit: "袋", note: "" },
+    { name: "ホットコーヒー", count: 1, unit: "箱", note: "半分切ったら" },
+    { name: "アイスコーヒー", count: 1, unit: "箱", note: "半分切ったら" }
+  ],
+  "キッチンエリア": [
+    { name: "タウパー", count: 2, unit: "袋", note: "" },
+    { name: "ソフトコーン", count: 1, unit: "箱", note: "残り2本になったら" },
+    { name: "バニラシロップ", count: 2, unit: "袋", note: "" },
+    { name: "ストロベリーシロップ", count: 2, unit: "袋", note: "" },
+    { name: "チョコシロップ", count: 2, unit: "袋", note: "" },
+    { name: "マンゴーSB", count: 2, unit: "本", note: "" },
+    { name: "キャラメルソース", count: 1, unit: "本", note: "" },
+    { name: "キャラメルシロップ", count: 1, unit: "本", note: "" },
+    { name: "エスプレッソ豆", count: 4, unit: "袋", note: "" },
+    { name: "リキッドオイル", count: 1, unit: "袋", note: "" },
+    { name: "乾燥オニオン", count: 8, unit: "袋", note: "" },
+    { name: "テリヤキソース", count: 6, unit: "袋", note: "" },
+    { name: "グリルシーズニング", count: 2, unit: "袋", note: "" },
+    { name: "塩", count: 2, unit: "袋", note: "" },
+    { name: "ケチャップ", count: 6, unit: "袋", note: "" },
+    { name: "マスタード", count: 3, unit: "袋", note: "" },
+    { name: "ピクルス", count: 2, unit: "袋", note: "" },
+    { name: "アブリショウユソース", count: 1, unit: "箱", note: "" },
+    { name: "ガーリックペッパーソース", count: 1, unit: "箱", note: "" }
+  ],
+  "店舗出入口": [
+    { name: "ショ缶", count: 4, unit: "缶", note: "" },
+    { name: "CO2", count: 1, unit: "本", note: "" }
+  ],
+  "店舗裏右": [
+    { name: "3号バッグ", count: 1, unit: "個", note: "" },
+    { name: "6号バッグ", count: 2, unit: "個", note: "" },
+    { name: "9号バッグ", count: 1, unit: "個", note: "" },
+    { name: "プラストロー", count: 2, unit: "袋", note: "" },
+    { name: "フレキシブルストロー", count: 2, unit: "袋", note: "" },
+    { name: "スプーンストロー", count: 1, unit: "袋", note: "" },
+    { name: "サラダフォーク", count: 1, unit: "袋", note: "" },
+    { name: "スプーン", count: 1, unit: "袋", note: "" },
+    { name: "ハッピーバッグ", count: 2, unit: "個", note: "" },
+    { name: "BBQソース", count: 2, unit: "箱", note: "" },
+    { name: "MUSTソース", count: 2, unit: "箱", note: "" },
+    { name: "カップケチャップ", count: 1, unit: "箱", note: "" }
+  ],
+  "店舗裏真ん中": [
+    { name: "ドリンクキャリア", count: 4, unit: "本", note: "" },
+    { name: "9ozホットリッド", count: 3, unit: "本", note: "" },
+    { name: "12ozホットリッド", count: 6, unit: "本", note: "" },
+    { name: "プラリッド", count: 2, unit: "本", note: "" },
+    { name: "ドームリッド", count: 2, unit: "本", note: "" },
+    { name: "フルーリーカップ", count: 2, unit: "本", note: "" },
+    { name: "コーンカップ", count: 2, unit: "本", note: "" },
+    { name: "コーンリッド", count: 2, unit: "本", note: "" },
+    { name: "サラダBOX", count: 1, unit: "本", note: "" },
+    { name: "水飲みカップ", count: 2, unit: "本", note: "" },
+    { name: "ウェットワイパー", count: 1, unit: "箱", note: "" },
+    { name: "10ozコールドリッド", count: 1, unit: "箱", note: "" },
+    { name: "14ozコールドリッド", count: 1, unit: "箱", note: "" },
+    { name: "10ozコールドカップ", count: 1, unit: "箱", note: "" },
+    { name: "14ozコールドカップ", count: 1, unit: "箱", note: "" },
+    { name: "18ozコールドカップ", count: 3, unit: "本", note: "" },
+    { name: "9ozホットカップ", count: 1, unit: "箱", note: "" },
+    { name: "12ozホットカップ", count: 1, unit: "箱", note: "" }
+  ],
+  "店舗裏左": [
+    { name: "レシートロール", count: 7, unit: "巻", note: "" },
+    { name: "スティッカーレシート", count: 3, unit: "本", note: "" },
+    { name: "3POシール", count: 8, unit: "束", note: "" },
+    { name: "倍シール", count: 2, unit: "巻", note: "" },
+    { name: "Sポリ袋", count: 1, unit: "箱", note: "" },
+    { name: "Lポリ袋", count: 1, unit: "箱", note: "" },
+    { name: "ドリンク袋", count: 1, unit: "箱", note: "" },
+    { name: "パックライナー", count: 1, unit: "箱", note: "" }
+  ],
+  "ラップ": [
+    { name: "BIGMAC", count: 1, unit: "袋", note: "" },
+    { name: "倍BIGMAC", count: 1, unit: "袋", note: "" },
+    { name: "FOF", count: 1, unit: "袋", note: "" },
+    { name: "倍FOF", count: 1, unit: "袋", note: "" },
+    { name: "プチパン", count: 1, unit: "本", note: "" },
+    { name: "NGT", count: 2, unit: "本", note: "" },
+    { name: "NGT15P", count: 1, unit: "箱", note: "" },
+    { name: "アップルパイ", count: 1, unit: "箱", note: "" },
+    { name: "シャカチキ", count: 1, unit: "箱", note: "" },
+    { name: "エビフィレオ", count: 1, unit: "袋", note: "" },
+    { name: "チキンフィレオ", count: 1, unit: "袋", note: "" },
+    { name: "DCB", count: 1, unit: "袋", note: "" },
+    { name: "TMB", count: 1, unit: "袋", note: "" },
+    { name: "エグチ&BLB", count: 1, unit: "袋", note: "" },
+    { name: "チキチー&クリスプ", count: 1, unit: "袋", note: "" },
+    { name: "HB", count: 1, unit: "袋", note: "" },
+    { name: "CB", count: 1, unit: "袋", note: "" },
+    { name: "テリCFO", count: 1, unit: "袋", note: "" },
+    { name: "アブリダブル", count: 1, unit: "袋", note: "" },
+    { name: "アブリベーコン", count: 1, unit: "袋", note: "" }
+  ]
+};
+
+function renderApp() {
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    
+    for (const [area, items] of Object.entries(initialCategories)) {
+        const areaDiv = document.createElement('div');
+        areaDiv.className = 'area-title';
+        areaDiv.textContent = area;
+        app.appendChild(areaDiv);
+
+        items.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const noteHtml = item.note ? `<div class="item-note">※${item.note}</div>` : '';
+
+            card.innerHTML = `
+                <div class="item-info">
+                    <div class="item-name">${item.name}</div>
+                    ${noteHtml}
+                </div>
+                <div class="input-area">
+                    <input type="number" inputmode="numeric" value="${item.count}" id="input-${area}-${index}">
+                    <span class="unit">${item.unit}</span>
+                </div>
+            `;
+            app.appendChild(card);
+        });
+    }
+}
+
+function saveData() {
+    alert('保存しました！');
+}
+
+renderApp();
+</script>
+
+</body>
+</html>
